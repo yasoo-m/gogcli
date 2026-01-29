@@ -105,10 +105,12 @@ func (c *GmailWatchStartCmd) Run(ctx context.Context, kctx *kong.Context, flags 
 		return err
 	}
 
-	return writeWatchState(ctx, state)
+	return writeWatchState(ctx, state, false)
 }
 
-type GmailWatchStatusCmd struct{}
+type GmailWatchStatusCmd struct {
+	ShowSecrets bool `help:"Show secret values (e.g. hook token) in plaintext"`
+}
 
 func (c *GmailWatchStatusCmd) Run(ctx context.Context, flags *RootFlags) error {
 	account, err := requireAccount(flags)
@@ -119,7 +121,7 @@ func (c *GmailWatchStatusCmd) Run(ctx context.Context, flags *RootFlags) error {
 	if err != nil {
 		return err
 	}
-	return writeWatchState(ctx, store.Get())
+	return writeWatchState(ctx, store.Get(), c.ShowSecrets)
 }
 
 type GmailWatchRenewCmd struct {
@@ -178,7 +180,7 @@ func (c *GmailWatchRenewCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return err
 	}
 
-	return writeWatchState(ctx, updated)
+	return writeWatchState(ctx, updated, false)
 }
 
 type GmailWatchStopCmd struct{}
@@ -386,54 +388,73 @@ func (c *GmailWatchServeCmd) Run(ctx context.Context, kctx *kong.Context, flags 
 	return listenAndServe(httpServer)
 }
 
-func writeWatchState(ctx context.Context, state gmailWatchState) error {
+func writeWatchState(ctx context.Context, state gmailWatchState, showSecrets bool) error {
+	displayState := state
+	if !showSecrets {
+		displayState = redactWatchStateSecrets(state)
+	}
 	if outfmt.IsJSON(ctx) {
-		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"watch": state})
+		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"watch": displayState})
 	}
 	u := ui.FromContext(ctx)
-	u.Out().Printf("account\t%s", state.Account)
-	u.Out().Printf("topic\t%s", state.Topic)
-	if len(state.Labels) > 0 {
-		u.Out().Printf("labels\t%s", strings.Join(state.Labels, ","))
+	u.Out().Printf("account\t%s", displayState.Account)
+	u.Out().Printf("topic\t%s", displayState.Topic)
+	if len(displayState.Labels) > 0 {
+		u.Out().Printf("labels\t%s", strings.Join(displayState.Labels, ","))
 	}
-	u.Out().Printf("history_id\t%s", state.HistoryID)
-	if state.ExpirationMs > 0 {
-		u.Out().Printf("expiration\t%s", formatUnixMillis(state.ExpirationMs))
+	u.Out().Printf("history_id\t%s", displayState.HistoryID)
+	if displayState.ExpirationMs > 0 {
+		u.Out().Printf("expiration\t%s", formatUnixMillis(displayState.ExpirationMs))
 	}
-	if state.ProviderExpirationMs > 0 {
-		u.Out().Printf("provider_expiration\t%s", formatUnixMillis(state.ProviderExpirationMs))
+	if displayState.ProviderExpirationMs > 0 {
+		u.Out().Printf("provider_expiration\t%s", formatUnixMillis(displayState.ProviderExpirationMs))
 	}
-	if state.RenewAfterMs > 0 {
-		u.Out().Printf("renew_after\t%s", formatUnixMillis(state.RenewAfterMs))
+	if displayState.RenewAfterMs > 0 {
+		u.Out().Printf("renew_after\t%s", formatUnixMillis(displayState.RenewAfterMs))
 	}
-	if state.UpdatedAtMs > 0 {
-		u.Out().Printf("updated_at\t%s", formatUnixMillis(state.UpdatedAtMs))
+	if displayState.UpdatedAtMs > 0 {
+		u.Out().Printf("updated_at\t%s", formatUnixMillis(displayState.UpdatedAtMs))
 	}
-	if state.Hook != nil {
-		u.Out().Printf("hook_url\t%s", state.Hook.URL)
-		if state.Hook.IncludeBody {
+	if displayState.Hook != nil {
+		u.Out().Printf("hook_url\t%s", displayState.Hook.URL)
+		if displayState.Hook.IncludeBody {
 			u.Out().Printf("hook_include_body\ttrue")
 		}
-		if state.Hook.MaxBytes > 0 {
-			u.Out().Printf("hook_max_bytes\t%d", state.Hook.MaxBytes)
+		if displayState.Hook.MaxBytes > 0 {
+			u.Out().Printf("hook_max_bytes\t%d", displayState.Hook.MaxBytes)
 		}
-		if state.Hook.Token != "" {
-			u.Out().Printf("hook_token\t%s", state.Hook.Token)
+		if displayState.Hook.Token != "" {
+			u.Out().Printf("hook_token\t%s", displayState.Hook.Token)
 		}
 	}
-	if state.LastDeliveryStatus != "" {
-		u.Out().Printf("last_delivery_status\t%s", state.LastDeliveryStatus)
+	if displayState.LastDeliveryStatus != "" {
+		u.Out().Printf("last_delivery_status\t%s", displayState.LastDeliveryStatus)
 	}
-	if state.LastDeliveryAtMs > 0 {
-		u.Out().Printf("last_delivery_at\t%s", formatUnixMillis(state.LastDeliveryAtMs))
+	if displayState.LastDeliveryAtMs > 0 {
+		u.Out().Printf("last_delivery_at\t%s", formatUnixMillis(displayState.LastDeliveryAtMs))
 	}
-	if state.LastDeliveryStatusNote != "" {
-		u.Out().Printf("last_delivery_note\t%s", state.LastDeliveryStatusNote)
+	if displayState.LastDeliveryStatusNote != "" {
+		u.Out().Printf("last_delivery_note\t%s", displayState.LastDeliveryStatusNote)
 	}
-	if state.LastPushMessageID != "" {
-		u.Out().Printf("last_push_message_id\t%s", state.LastPushMessageID)
+	if displayState.LastPushMessageID != "" {
+		u.Out().Printf("last_push_message_id\t%s", displayState.LastPushMessageID)
 	}
 	return nil
+}
+
+func redactWatchStateSecrets(state gmailWatchState) gmailWatchState {
+	if state.Hook == nil || state.Hook.Token == "" {
+		return state
+	}
+	redacted := state
+	hook := *state.Hook
+	if len(hook.Token) > 4 {
+		hook.Token = hook.Token[:4] + "...(" + strconv.Itoa(len(hook.Token)) + " chars)"
+	} else {
+		hook.Token = "[REDACTED]"
+	}
+	redacted.Hook = &hook
+	return redacted
 }
 
 func buildWatchState(account, topic string, labels []string, resp *gmail.WatchResponse, ttl time.Duration, hook *gmailWatchHook) (gmailWatchState, error) {
