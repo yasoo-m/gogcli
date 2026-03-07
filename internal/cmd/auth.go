@@ -488,6 +488,8 @@ type AuthAddCmd struct {
 	GmailScope   string        `name:"gmail-scope" help:"Gmail scope mode: full|readonly" enum:"full,readonly" default:"full"`
 }
 
+const authScopeFull = "full"
+
 func formatRemoteStep2Instruction(services []googleauth.Service, c *AuthAddCmd) string {
 	parts := []string{"--remote", "--step", "2", "--auth-url", "<redirect-url>"}
 	if len(services) > 0 {
@@ -500,10 +502,10 @@ func formatRemoteStep2Instruction(services []googleauth.Service, c *AuthAddCmd) 
 	if c.Readonly {
 		parts = append(parts, "--readonly")
 	}
-	if driveScope := strings.ToLower(strings.TrimSpace(c.DriveScope)); driveScope != "" && driveScope != "full" {
+	if driveScope := strings.ToLower(strings.TrimSpace(c.DriveScope)); driveScope != "" && driveScope != authScopeFull {
 		parts = append(parts, "--drive-scope", driveScope)
 	}
-	if gmailScope := strings.ToLower(strings.TrimSpace(c.GmailScope)); gmailScope != "" && gmailScope != "full" {
+	if gmailScope := strings.ToLower(strings.TrimSpace(c.GmailScope)); gmailScope != "" && gmailScope != authScopeFull {
 		parts = append(parts, "--gmail-scope", gmailScope)
 	}
 	if c.ForceConsent {
@@ -1115,7 +1117,8 @@ func (c *AuthKeepCmd) Run(ctx context.Context, _ *RootFlags) error {
 		return err
 	}
 
-	data, err := os.ReadFile(keyPath) //nolint:gosec // user-provided path
+	//nolint:gosec // user-provided path
+	data, err := os.ReadFile(keyPath)
 	if err != nil {
 		return fmt.Errorf("read service account key: %w", err)
 	}
