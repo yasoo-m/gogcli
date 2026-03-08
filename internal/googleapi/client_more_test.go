@@ -459,9 +459,11 @@ func TestOptionsForAccountScopes_ADCMode(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected err: %v", err)
 	}
+
 	if !called {
 		t.Fatalf("expected ADC token source to be called")
 	}
+
 	if len(opts) == 0 {
 		t.Fatalf("expected client options")
 	}
