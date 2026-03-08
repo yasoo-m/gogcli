@@ -391,7 +391,7 @@ func (c *GmailWatchServeCmd) Run(ctx context.Context, kctx *kong.Context, flags 
 func writeWatchState(ctx context.Context, state gmailWatchState, showSecrets bool) error {
 	displayState := state
 	if !showSecrets {
-		displayState = redactWatchStateSecrets(state)
+		displayState = redactWatchStateSecrets(state, outfmt.IsJSON(ctx))
 	}
 	if outfmt.IsJSON(ctx) {
 		return outfmt.WriteJSON(ctx, os.Stdout, map[string]any{"watch": displayState})
@@ -442,13 +442,13 @@ func writeWatchState(ctx context.Context, state gmailWatchState, showSecrets boo
 	return nil
 }
 
-func redactWatchStateSecrets(state gmailWatchState) gmailWatchState {
+func redactWatchStateSecrets(state gmailWatchState, full bool) gmailWatchState {
 	if state.Hook == nil || state.Hook.Token == "" {
 		return state
 	}
 	redacted := state
 	hook := *state.Hook
-	if len(hook.Token) > 4 {
+	if !full && len(hook.Token) > 4 {
 		hook.Token = hook.Token[:4] + "...(" + strconv.Itoa(len(hook.Token)) + " chars)"
 	} else {
 		hook.Token = "[REDACTED]"
