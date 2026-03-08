@@ -30,11 +30,9 @@ const (
 	tokenExchangeTimeout = 30 * time.Second
 )
 
-var (
-	newADCTokenSource = func(ctx context.Context, scopes ...string) (oauth2.TokenSource, error) {
-		return google.DefaultTokenSource(ctx, scopes...)
-	}
-)
+var newADCTokenSource = func(ctx context.Context, scopes ...string) (oauth2.TokenSource, error) {
+	return google.DefaultTokenSource(ctx, scopes...)
+}
 
 func optionsForAccount(ctx context.Context, service googleauth.Service, email string) ([]option.ClientOption, error) {
 	scopes, err := googleauth.Scopes(service)
