@@ -401,16 +401,19 @@ func TestOptionsForAccountScopes_ServiceAccountPreferred(t *testing.T) {
 
 func TestIsADCMode(t *testing.T) {
 	t.Setenv("GOG_AUTH_MODE", "")
+
 	if IsADCMode() {
 		t.Fatalf("expected false when GOG_AUTH_MODE is empty")
 	}
 
 	t.Setenv("GOG_AUTH_MODE", "adc")
+
 	if !IsADCMode() {
 		t.Fatalf("expected true when GOG_AUTH_MODE=adc")
 	}
 
 	t.Setenv("GOG_AUTH_MODE", "oauth")
+
 	if IsADCMode() {
 		t.Fatalf("expected false when GOG_AUTH_MODE=oauth")
 	}
@@ -422,6 +425,7 @@ func TestOptionsForAccountScopes_ADCMode(t *testing.T) {
 	origADC := newADCTokenSource
 	origRead := readClientCredentials
 	origOpen := openSecretsStore
+
 	t.Cleanup(func() {
 		newADCTokenSource = origADC
 		readClientCredentials = origRead
@@ -431,9 +435,11 @@ func TestOptionsForAccountScopes_ADCMode(t *testing.T) {
 	called := false
 	newADCTokenSource = func(_ context.Context, scopes ...string) (oauth2.TokenSource, error) {
 		called = true
+
 		if len(scopes) != 1 || scopes[0] != "https://www.googleapis.com/auth/spreadsheets.readonly" {
 			t.Fatalf("unexpected scopes: %v", scopes)
 		}
+
 		return oauth2.StaticTokenSource(&oauth2.Token{AccessToken: "adc-token"}), nil
 	}
 

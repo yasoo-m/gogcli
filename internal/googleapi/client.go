@@ -30,9 +30,7 @@ const (
 	tokenExchangeTimeout = 30 * time.Second
 )
 
-var newADCTokenSource = func(ctx context.Context, scopes ...string) (oauth2.TokenSource, error) {
-	return google.DefaultTokenSource(ctx, scopes...)
-}
+var newADCTokenSource = google.DefaultTokenSource
 
 func optionsForAccount(ctx context.Context, service googleauth.Service, email string) ([]option.ClientOption, error) {
 	scopes, err := googleauth.Scopes(service)
@@ -56,15 +54,19 @@ func optionsForAccountScopes(ctx context.Context, serviceLabel string, email str
 	slog.Debug("creating client options with custom scopes", "serviceLabel", serviceLabel, "email", email)
 
 	var ts oauth2.TokenSource
+
 	if IsADCMode() {
 		slog.Debug("using Application Default Credentials (GOG_AUTH_MODE=adc)", "serviceLabel", serviceLabel)
+
 		adcTS, err := newADCTokenSource(ctx, scopes...)
 		if err != nil {
 			return nil, fmt.Errorf("ADC token source: %w", err)
 		}
+
 		ts = adcTS
 	} else {
 		var err error
+
 		ts, err = tokenSourceForAvailableAccountAuth(ctx, serviceLabel, email, scopes)
 		if err != nil {
 			return nil, err
